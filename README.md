@@ -1,2 +1,6 @@
 # LiteSeek
-A lite fuzzy full-text search engine for PHP, JavaScript, Python
+
+A lite, fast and versatile **fuzzy full-text search engine** for PHP, JavaScript, Python
+
+in progress
+
