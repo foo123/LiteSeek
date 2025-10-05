@@ -27,7 +27,7 @@ function LiteSeek()
     var self = this;
     self.opts = {};
     self.option('match-prefix', false);
-    self.option('similarity', 0.6);
+    self.option('similarity', 0.65);
     self.option('n-gram', 2);
     self.option('filter_word', null);
     self.option('normalize_word', null);
@@ -88,8 +88,8 @@ LiteSeek.prototype = {
                             {
                                 documentIndex[k] = [];
                             }
-                            //                     order, word, startpos, len
-                            documentIndex[k].push([p,     w,    j,        n]);
+                            //                     order, word, pos in text, len
+                            documentIndex[k].push([p,     w,    j,           n]);
                         }
                         p += 1;
                     }
@@ -116,8 +116,8 @@ LiteSeek.prototype = {
                     {
                         documentIndex[k] = [];
                     }
-                    //                     order, word, startpos, len
-                    documentIndex[k].push([p,     w,    j,        n]);
+                    //                     order, word, pos in text, len
+                    documentIndex[k].push([p,     w,    j,           n]);
                 }
                 p += 1;
             }

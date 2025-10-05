@@ -28,7 +28,7 @@ class LiteSeek:
         # some defaults
         self.opts = {}
         self.option('match-prefix', False)
-        self.option('similarity', 0.6)
+        self.option('similarity', 0.65)
         self.option('n-gram', 2)
         self.option('filter_word', None)
         self.option('normalize_word', None)
@@ -70,8 +70,8 @@ class LiteSeek:
                         for k in ngram:
                             if k not in documentIndex:
                                 documentIndex[k] = []
-                            #                        order, word, startpos, len
-                            documentIndex[k].append([p,     w,    j,        n])
+                            #                        order, word, pos in text, len
+                            documentIndex[k].append([p,     w,    j,           n])
                         p += 1
                 w = ''
             else:
@@ -86,8 +86,8 @@ class LiteSeek:
                 for k in ngram:
                     if k not in documentIndex:
                         documentIndex[k] = []
-                    #                        order, word, startpos, len
-                    documentIndex[k].append([p,     w,    j,        n])
+                    #                        order, word, pos in text, len
+                    documentIndex[k].append([p,     w,    j,           n])
                 p += 1
         if documentId:
             self.option('store_index')(documentId, documentIndex, locale)

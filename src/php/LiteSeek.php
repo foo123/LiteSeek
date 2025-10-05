@@ -23,7 +23,7 @@ class LiteSeek
     {
         // some defaults
         $this->option('match-prefix', false);
-        $this->option('similarity', 0.6);
+        $this->option('similarity', 0.65);
         $this->option('n-gram', 2);
         $this->option('filter_word', null);
         $this->option('normalize_word', null);
@@ -75,8 +75,8 @@ class LiteSeek
                             {
                                 $documentIndex[$k] = array();
                             }
-                            //                           order, word, startpos, len
-                            $documentIndex[$k][] = array($p,    $w,   $j,       $n);
+                            //                           order, word, pos in text, len
+                            $documentIndex[$k][] = array($p,    $w,   $j,          $n);
                         }
                         $p += 1;
                     }
@@ -102,8 +102,8 @@ class LiteSeek
                     {
                         $documentIndex[$k] = array();
                     }
-                    //                           order, word, startpos, len
-                    $documentIndex[$k][] = array($p,    $w,   $j,       $n);
+                    //                           order, word, pos in text, len
+                    $documentIndex[$k][] = array($p,    $w,   $j,          $n);
                 }
                 $p += 1;
             }
