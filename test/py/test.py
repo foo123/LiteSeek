@@ -47,7 +47,7 @@ Prepared is me marianne pleasure likewise debating. Wonder an unable except bett
 
 Pour un football doux Je ne pense pas qu'il soit facile de tomber malade avec de la levure ou de la levure. Le bateau et de la terre. Il est basketteur et agent immobilier. Mais quel genre de politique, qui parfois masse. Le cours convient aux commanditaires qui se tournent vers les rivages à travers nos mariages, à travers les projets hyménéens. On dit qu'il habitait cette rue. Il n'y a aucune conséquence sur l'importance de la vie. Parfois, la faim est attendue et avant c'est la première chose dans la gorge. Les enfants lisent le livre, le passeur et pas de flèche, la flèche est le plus gros joueur."""
 
-    search = LiteSeek().option('similarity', 0.65).option('n-gram', 3)
+    search = LiteSeek().option('similarity', 0.65).option('n-gram', 2)
 
     query1en = u'ointur sevrants weddings'
     query2en = u'any may mention'
