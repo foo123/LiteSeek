@@ -115,7 +115,7 @@ class LiteSeek
         return $documentIndex;
     }
 
-    public function find($documents, $query, $exact = false, $consecutive = false, $locale = null)
+    public function find($documents, $query, $exact = false, $consecutive = false, $transposed = false, $locale = null)
     {
         $index = is_string($documents) ? $this->index($documents, null) : null;
         $results = array();
@@ -123,6 +123,7 @@ class LiteSeek
         {
             $exact = !empty($exact);
             $consecutive = !empty($consecutive);
+            $transposed = !empty($transposed);
 
             $words = array_values(array_filter(
                 preg_split(
@@ -158,7 +159,7 @@ class LiteSeek
 
             if (!empty($index))
             {
-                $res = $this->match(null, $terms, $exact, $consecutive, $locale, $index);
+                $res = $this->match(null, $terms, $exact, $consecutive, $transposed, $locale, $index);
                 if ($t < $res['score'])
                 {
                     $results[] = array(
@@ -173,7 +174,7 @@ class LiteSeek
             {
                 foreach (array_values($documents) as $d)
                 {
-                    $res = $this->match($d, $terms, $exact, $consecutive, $locale, null);
+                    $res = $this->match($d, $terms, $exact, $consecutive, $transposed, $locale, null);
                     if ($t < $res['score'])
                     {
                         $results[] = array(
@@ -192,7 +193,7 @@ class LiteSeek
         return $results;
     }
 
-    protected function match($document, $terms, $exact = false, $consecutive = false, $locale = null, $document_index = null)
+    protected function match($document, $terms, $exact = false, $consecutive = false, $transposed = false, $locale = null, $document_index = null)
     {
         $seeker = $this;
         $threshold = $seeker->option('similarity');
@@ -275,13 +276,15 @@ class LiteSeek
             }
             return array($ab, $intersect);
         };
-        $match = function($i, $j, $j0) use (&$match, &$get_index, &$merge, &$seeker,
-                                            &$terms, $nterms, $N, $threshold, $exact, $consecutive) {
+        $match = function($i, $j, $j0, $i2, $t) use (&$match, &$get_index, &$merge, &$seeker,
+                                            &$terms, $nterms, $N, $threshold, $exact, $consecutive, $transposed) {
             if ($i >= $nterms) return null; // end of match
+            $best = null;
+            $max_score = -200000;
             $term = $terms[$i];
             $ngram = $seeker->ngram($term, $N);
             $l = mb_strlen($term, 'UTF-8');
-            $k = round((1-$threshold)*$l);
+            $e = round((1-$threshold)*$l);
             $index = array();
             $intersections = 0;
             foreach (array_keys($ngram) as $key)
@@ -289,14 +292,13 @@ class LiteSeek
                 list($index, $intersect) = $merge($index, $get_index($key), $j);
                 $intersections += $intersect;
             }
-            if (empty($index) || ($l-$N-$intersections > $k)) return false; // no match
-            $matcher = new LiteSeekAutomaton($term, $k);
-            $best = null;
-            $max_score = -200000;
+            if (empty($index) || ($l-$N-$intersections > $e)) return false; // no match
+            $matcher = new LiteSeekAutomaton($term, $e);
+            $ip = $t ? ($i+1) : $i;
             foreach ($index as $entry)
             {
                 $k = $entry[0]; // order in doc of next word
-                if ($consecutive && (0 < $i) && ($k > $j0+$i)) break; // consecutive and no consecutive match, stop
+                if ($consecutive && (0 < $ip) && ($k > $j0+$ip)) break; // consecutive and no consecutive match, stop
                 $word = $entry[1]; // word at this point
 
                 // try to match this term
@@ -304,7 +306,7 @@ class LiteSeek
                 if ($threshold > $similarity) continue; // not good match
 
                 // try to match rest terms
-                $res = $match($i+1, $k+1, 0 === $i ? $k : $j0);
+                $res = $match($i2, $k+1, 0 === $i ? $k : $j0, max($i, $i2)+1, 0);
                 if (false !== $res)
                 {
                     // matched
@@ -326,9 +328,59 @@ class LiteSeek
                     }
                 }
             }
+            if ($transposed && !$t && ($i2 < $nterms))
+            {
+                // try to match transposition
+                $term = $terms[$i2];
+                $ngram = $seeker->ngram($term, $N);
+                $l = mb_strlen($term, 'UTF-8');
+                $e = round((1-$threshold)*$l);
+                $index = array();
+                $intersections = 0;
+                foreach (array_keys($ngram) as $key)
+                {
+                    list($index, $intersect) = $merge($index, $get_index($key), $j);
+                    $intersections += $intersect;
+                }
+                if (empty($index) || ($l-$N-$intersections > $e)) return false; // no match
+                $matcher = new LiteSeekAutomaton($term, $e);
+                foreach ($index as $entry)
+                {
+                    $k = $entry[0]; // order in doc of next word
+                    if ($consecutive && (0 < $ip) && ($k > $j0+$ip)) break; // consecutive and no consecutive match, stop
+                    $word = $entry[1]; // word at this point
+
+                    // try to match this term
+                    $similarity = ($word === $term) ? 1 : ($exact ? 0 : $matcher->match($word));
+                    if ($threshold > $similarity) continue; // not good match
+
+                    // try to match rest terms with transposition
+                    $res = $match($i, $k+1, 0 === $i ? $k : $j0, max($i, $i2)+1, 1);
+                    if (false !== $res)
+                    {
+                        // matched
+                        $score = -1 + $j - $k - (1 - $similarity)*10;
+                        $marks = array(array($entry[2], $entry[3])); // marks of this match in document
+                        if ($res)
+                        {
+                            $score += $res['score'];
+                            $marks = array_merge($marks, $res['marks']);
+                        }
+                        if ($score > $max_score)
+                        {
+                            // current best match
+                            $max_score = $score;
+                            $best = array(
+                                'score' => $score,
+                                'marks' => $marks,
+                            );
+                        }
+                    }
+                }
+            }
             return (0 < $i) && empty($best) ? false : $best;
         };
-        $res = $match(0, -1, -1);
+        $res = $match(0, -1, -1, 1, 0);
         return $res ? $res : array('score' => -2000000, 'marks' => array());
     }
 

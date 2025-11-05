@@ -129,7 +129,7 @@ LiteSeek.prototype = {
         return documentIndex;
     },
 
-    find: async function(documents, query, exact, consecutive, locale) {
+    find: async function(documents, query, exact, consecutive, transposed, locale) {
         var self = this,
             index = is_string(documents) ? (await self.index(documents, null)) : null,
             results = [], q, consecutive, words, word, terms,
@@ -138,6 +138,7 @@ LiteSeek.prototype = {
         {
             exact = !!exact;
             consecutive = !!consecutive;
+            transposed = !!transposed;
 
             words = (
                 // strip delimiters ..
@@ -173,7 +174,7 @@ LiteSeek.prototype = {
 
             if (index)
             {
-                res = await self._match(null, terms, exact, consecutive, locale, index);
+                res = await self._match(null, terms, exact, consecutive, transposed, locale, index);
                 if (t < res.score)
                 {
                     results.push({
@@ -188,7 +189,7 @@ LiteSeek.prototype = {
             {
                 for (i=0,n=documents.length; i<n; ++i)
                 {
-                    res = await self._match(documents[i], terms, exact, consecutive, locale, null);
+                    res = await self._match(documents[i], terms, exact, consecutive, transposed, locale, null);
                     if (t < res.score)
                     {
                         results.push({
@@ -207,7 +208,7 @@ LiteSeek.prototype = {
         return results;
     },
 
-    _match: async function(document, terms, exact, consecutive, locale, document_index) {
+    _match: async function(document, terms, exact, consecutive, transposed, locale, document_index) {
         var seeker = this,
             threshold = seeker.option('similarity'),
             nterms = terms.length,
@@ -289,17 +290,18 @@ LiteSeek.prototype = {
             }
             return [ab, intersect];
         };
-        match = async function match(i, j, j0) {
+        match = async function match(i, j, j0, i2, t) {
             if (i >= nterms) return null; // end of match
-            var term = terms[i], l,
-                best = null, max_score = -200000,
-                ngram, matcher, index, key, ii, iic,
+            var best = null, max_score = -200000,
+                term, l, e, ngram, matcher,
+                index, key, ii, iic, ip,
                 entry, k, word, res,
                 similarity, score, marks,
                 intersections = 0;
+            term = terms[i];
             ngram = seeker._ngram(term, N);
             l = term.length;
-            k = round((1-threshold)*l);
+            e = round((1-threshold)*l);
             index = [];
             for (key in ngram)
             {
@@ -308,13 +310,14 @@ LiteSeek.prototype = {
                 index = res[0];
                 intersections += res[1];
             }
-            if (!index.length || (l-N-intersections > k)) return false; // no match
-            matcher = new LiteSeek.Automaton(term, k);
+            if (!index.length || (l-N-intersections > e)) return false; // no match
+            matcher = new LiteSeek.Automaton(term, e);
+            ip = t ? (i+1) : i;
             for (ii=0,iic=index.length; ii<iic; ++ii)
             {
                 entry = index[ii];
                 k = entry[0]; // order in doc of next word
-                if (consecutive && (0 < i) && (k > j0+i)) break; // consecutive and no consecutive match, stop
+                if (consecutive && (0 < ip) && (k > j0+ip)) break; // consecutive and no consecutive match, stop
                 word = entry[1]; // word at this point
 
                 // try to match this term
@@ -322,7 +325,7 @@ LiteSeek.prototype = {
                 if (threshold > similarity) continue; // not good match
 
                 // try to match rest terms
-                res = await match(i+1, k+1, 0 === i ? k : j0);
+                res = await match(i2, k+1, 0 === i ? k : j0, stdMath.max(i, i2)+1, 0);
                 if (false !== res)
                 {
                     // matched
@@ -344,9 +347,60 @@ LiteSeek.prototype = {
                     }
                 }
             }
+            if (transposed && !t && (i2 < nterms))
+            {
+                term = terms[i2];
+                ngram = seeker._ngram(term, N);
+                l = term.length;
+                e = round((1-threshold)*l);
+                index = [];
+                for (key in ngram)
+                {
+                    if (!isset(ngram, key)) continue;
+                    res = merge(index, await get_index(key), j);
+                    index = res[0];
+                    intersections += res[1];
+                }
+                if (!index.length || (l-N-intersections > e)) return false; // no match
+                matcher = new LiteSeek.Automaton(term, e);
+                for (ii=0,iic=index.length; ii<iic; ++ii)
+                {
+                    entry = index[ii];
+                    k = entry[0]; // order in doc of next word
+                    if (consecutive && (0 < ip) && (k > j0+ip)) break; // consecutive and no consecutive match, stop
+                    word = entry[1]; // word at this point
+
+                    // try to match this term
+                    similarity = (word === term) ? 1 : (exact ? 0 : matcher.match(word));
+                    if (threshold > similarity) continue; // not good match
+
+                    // try to match rest terms with transposition
+                    res = await match(i, k+1, 0 === i ? k : j0, stdMath.max(i, i2)+1, 1);
+                    if (false !== res)
+                    {
+                        // matched
+                        score = -1 + j - k - (1 - similarity)*10;
+                        marks = [[entry[2], entry[3]]]; // marks of this match in document
+                        if (res)
+                        {
+                            score += res.score;
+                            marks = marks.concat(res.marks);
+                        }
+                        if (score > max_score)
+                        {
+                            // current best match
+                            max_score = score;
+                            best = {
+                                score : score,
+                                marks : marks
+                            };
+                        }
+                    }
+                }
+            }
             return (0 < i) && !best ? false : best;
         };
-        res = await match(0, -1, -1);
+        res = await match(0, -1, -1, 1, 0);
         return res ? res : {score : -2000000, marks : []};
     },
 

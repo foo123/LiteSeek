@@ -31,9 +31,8 @@ def display(query, results):
     print("\n[" + query + "] -> ")
     for match in results:
         doc = match['document']
-        marks = match['marks']
-        for i in range(len(marks)-1, -1, -1):
-            mark = marks[i]
+        marks = sorted(match['marks'], key=lambda a: a[0], reverse=True)
+        for mark in marks:
             doc = doc[0:mark[0]] + '**' + doc[mark[0]:mark[0]+mark[1]] + '**' + doc[mark[0]+mark[1]:]
         print("\n\n" + doc)
     print("--\n")
@@ -50,18 +49,21 @@ Pour un football doux Je ne pense pas qu'il soit facile de tomber malade avec de
     search = LiteSeek().option('similarity', 0.65).option('n-gram', 2)
 
     query1en = u'ointur sevrants weddings'
+    query1ent = u'sevrants ointur weddings'
     query2en = u'any may mention'
     query1fr = u'tre impotrant suivi client'
     query2fr = u'mais ne pas maintenant'
 
-    res1en = search.find(document_en, query1en, False, False)
-    res2en = search.find(document_en, query1en, True, False)
-    res3en = search.find(document_en, query2en, False, True)
-    res1fr = search.find(document_fr, query1fr, False, False)
-    res2fr = search.find(document_fr, query1fr, True, False)
-    res3fr = search.find(document_fr, query2fr, False, True)
+    res1en = search.find(document_en, query1en, False, False, False)
+    res1ent = search.find(document_en, query1ent, False, False, True)
+    res2en = search.find(document_en, query1en, True, False, False)
+    res3en = search.find(document_en, query2en, False, True, False)
+    res1fr = search.find(document_fr, query1fr, False, False, False)
+    res2fr = search.find(document_fr, query1fr, True, False, False)
+    res3fr = search.find(document_fr, query2fr, False, True, False)
 
     display(query1en, res1en)
+    display(query1ent, res1ent)
     display(query1en, res2en)
     display(query2en, res3en)
 

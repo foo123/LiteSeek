@@ -8,7 +8,8 @@ function display(query, results)
     echo("\n[" + query + "] -> ");
     results.forEach(match => {
         let doc = match.document;
-        match.marks.reverse().forEach(mark => {
+        match.marks.sort(function(a, b) {return b[0] - a[0];});
+        match.marks.forEach(mark => {
             doc = doc.slice(0, mark[0]) + '**' + doc.slice(mark[0], mark[0]+mark[1]) + '**' + doc.slice(mark[0]+mark[1]);
         });
         echo("\n\n" + doc);
@@ -28,18 +29,21 @@ Pour un football doux Je ne pense pas qu\'il soit facile de tomber malade avec d
     const search = (new LiteSeek()).option('similarity', 0.65).option('n-gram', 2);
 
     const query1en = 'ointur sevrants weddings';
+    const query1ent = 'sevrants ointur weddings';
     const query2en = 'any may mention';
     const query1fr = 'tre impotrant suivi client';
     const query2fr = 'mais ne pas maintenant';
 
-    const res1en = await search.find(document_en, query1en, false, false);
-    const res2en = await search.find(document_en, query1en, true, false);
-    const res3en = await search.find(document_en, query2en, false, true);
-    const res1fr = await search.find(document_fr, query1fr, false, false);
-    const res2fr = await search.find(document_fr, query1fr, true, false);
-    const res3fr = await search.find(document_fr, query2fr, false, true);
+    const res1en = await search.find(document_en, query1en, false, false, false);
+    const res1ent = await search.find(document_en, query1ent, false, false, true);
+    const res2en = await search.find(document_en, query1en, true, false, false);
+    const res3en = await search.find(document_en, query2en, false, true, false);
+    const res1fr = await search.find(document_fr, query1fr, false, false, false);
+    const res2fr = await search.find(document_fr, query1fr, true, false, false);
+    const res3fr = await search.find(document_fr, query2fr, false, true, false);
 
     display(query1en, res1en);
+    display(query1ent, res1ent);
     display(query1en, res2en);
     display(query2en, res3en);
 

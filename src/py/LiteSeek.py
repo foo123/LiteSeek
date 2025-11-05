@@ -93,12 +93,13 @@ class LiteSeek:
             self.option('store_index')(documentId, documentIndex, locale)
         return documentIndex
 
-    def find(self, documents, query, exact = False, consecutive = False, locale = None):
+    def find(self, documents, query, exact = False, consecutive = False, transposed = False, locale = None):
         index = self.index(documents, None) if is_string(documents) else None
         results = []
         if index or (is_array(documents) and len(documents)):
             exact = bool(exact)
             consecutive = bool(consecutive)
+            transposed = bool(transposed)
 
             words = list(filter(
                 lambda s: 0 < len(s),
@@ -129,7 +130,7 @@ class LiteSeek:
             t = -1000000
 
             if index:
-                res = self._match(None, terms, exact, consecutive, locale, index)
+                res = self._match(None, terms, exact, consecutive, transposed, locale, index)
                 if t < res['score']:
                     results.append({
                         'document'  : documents,
@@ -139,7 +140,7 @@ class LiteSeek:
                     })
             else:
                 for d in documents:
-                    res = self._match(d, terms, exact, consecutive, locale, None)
+                    res = self._match(d, terms, exact, consecutive, transposed, locale, None)
                     if t < res['score']:
                         results.append({
                             'document'  : d,
@@ -151,7 +152,7 @@ class LiteSeek:
             results = list(sorted(results, key=cmp_to_key(lambda a, b: b['score'] - a['score'])))
         return results
 
-    def _match(self, document, terms, exact = False, consecutive = False, locale = None, document_index = None):
+    def _match(self, document, terms, exact = False, consecutive = False, transposed = False, locale = None, document_index = None):
         seeker = self
         threshold = seeker.option('similarity')
         N = seeker.option('n-gram')
@@ -209,24 +210,25 @@ class LiteSeek:
                     j += 1
             return (ab, intersect)
 
-        def match(i, j, j0):
+        def match(i, j, j0, i2, t):
             if i >= nterms: return None # end of match
+            best = None
+            max_score = -200000
             term = terms[i]
             ngram = seeker._ngram(term, N)
             l = len(term)
-            k = round((1-threshold)*l)
+            e = round((1-threshold)*l)
             index = []
             intersections = 0
             for key in ngram:
                 index, intersect = merge(index, get_index(key), j)
                 intersections += intersect
-            if (not index) or (l-N-intersections > k): return False # no match
-            matcher = LiteSeek.Automaton(term, k)
-            best = None
-            max_score = -200000
+            if (not index) or (l-N-intersections > e): return False # no match
+            matcher = LiteSeek.Automaton(term, e)
+            ip = i+1 if t else i
             for entry in index:
                 k = entry[0] # order in doc of next word
-                if consecutive and (0 < i) and (k > j0+i): break # consecutive and no consecutive match, stop
+                if consecutive and (0 < ip) and (k > j0+ip): break # consecutive and no consecutive match, stop
                 word = entry[1] # word at this point
 
                 # try to match this term
@@ -234,7 +236,7 @@ class LiteSeek:
                 if threshold > similarity: continue # not good match
 
                 # try to match rest terms
-                res = match(i+1, k+1, k if 0 == i else j0)
+                res = match(i2, k+1, k if 0 == i else j0, max(i, i2)+1, 0)
                 if res is not False:
                     # matched
                     score = j - k - (1 - similarity)*10
@@ -249,9 +251,46 @@ class LiteSeek:
                             'score' : score,
                             'marks' : marks
                         }
+            if transposed and (not t) and (i2 < nterms):
+                term = terms[i2]
+                ngram = seeker._ngram(term, N)
+                l = len(term)
+                e = round((1-threshold)*l)
+                index = []
+                intersections = 0
+                for key in ngram:
+                    index, intersect = merge(index, get_index(key), j)
+                    intersections += intersect
+                if (not index) or (l-N-intersections > e): return False # no match
+                matcher = LiteSeek.Automaton(term, e)
+                for entry in index:
+                    k = entry[0] # order in doc of next word
+                    if consecutive and (0 < ip) and (k > j0+ip): break # consecutive and no consecutive match, stop
+                    word = entry[1] # word at this point
+
+                    # try to match this term
+                    similarity = 1 if (word == term) else (0 if exact else matcher.match(word))
+                    if threshold > similarity: continue # not good match
+
+                    # try to match rest terms with transposition
+                    res = match(i, k+1, k if 0 == i else j0, max(i, i2)+1, 1)
+                    if res is not False:
+                        # matched
+                        score = -1 + j - k - (1 - similarity)*10
+                        marks = [[entry[2], entry[3]]] # marks of this match in document
+                        if res:
+                            score += res['score']
+                            marks = marks + res['marks']
+                        if score > max_score:
+                            # current best match
+                            max_score = score
+                            best = {
+                                'score' : score,
+                                'marks' : marks
+                            }
             return False if (0 < i) and not best else best
 
-        res = match(0, -1, -1)
+        res = match(0, -1, -1, 1, 0)
         return res if res else {'score' : -2000000, 'marks' : []}
 
     def _ngram(self, s, n):

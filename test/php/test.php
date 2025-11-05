@@ -7,7 +7,8 @@ function display($query, $results)
     foreach ($results as $match)
     {
         $doc = $match['document'];
-        foreach (array_reverse($match['marks']) as $mark)
+        usort($match['marks'], function($a, $b) {return $b[0] - $a[0];});
+        foreach ($match['marks'] as $mark)
         {
             $doc = mb_substr($doc, 0, $mark[0], 'UTF-8') . '**' . mb_substr($doc, $mark[0], $mark[1], 'UTF-8') . '**' . mb_substr($doc, $mark[0]+$mark[1], null, 'UTF-8');
         }
@@ -28,18 +29,21 @@ Pour un football doux Je ne pense pas qu\'il soit facile de tomber malade avec d
     $search = (new LiteSeek())->option('similarity', 0.65)->option('n-gram', 2);
 
     $query1en = 'ointur sevrants weddings';
+    $query1ent = 'sevrants ointur weddings';
     $query2en = 'any may mention';
     $query1fr = 'tre impotrant suivi client';
     $query2fr = 'mais ne pas maintenant';
 
-    $res1en = $search->find($document_en, $query1en, false, false);
-    $res2en = $search->find($document_en, $query1en, true, false);
-    $res3en = $search->find($document_en, $query2en, false, true);
-    $res1fr = $search->find($document_fr, $query1fr, false, false);
-    $res2fr = $search->find($document_fr, $query1fr, true, false);
-    $res3fr = $search->find($document_fr, $query2fr, false, true);
+    $res1en = $search->find($document_en, $query1en, false, false, false);
+    $res1ent = $search->find($document_en, $query1ent, false, false, true);
+    $res2en = $search->find($document_en, $query1en, true, false, false);
+    $res3en = $search->find($document_en, $query2en, false, true, false);
+    $res1fr = $search->find($document_fr, $query1fr, false, false, false);
+    $res2fr = $search->find($document_fr, $query1fr, true, false, false);
+    $res3fr = $search->find($document_fr, $query2fr, false, true, false);
 
     display($query1en, $res1en);
+    display($query1ent, $res1ent);
     display($query1en, $res2en);
     display($query2en, $res3en);
 
